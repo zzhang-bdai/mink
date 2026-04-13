@@ -11,7 +11,7 @@ from pathlib import Path
 import toml
 
 project = "mink"
-copyright = "2025, Kevin Zakka"
+copyright = "2026, Kevin Zakka"
 author = "Kevin Zakka"
 
 # The short X.Y version
