@@ -1,0 +1,38 @@
+<mujoco model="g1 torso drag scene">
+  <include file="g1.xml"/>
+
+  <statistic center="0.0 0 .9" extent="1.2" meansize="0.08"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
+    <global azimuth="180" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture name="grid" type="2d" builtin="checker" rgb1=".2 .3 .4" rgb2=".1 0.15 0.2" width="512" height="512"
+      mark="cross" markrgb=".8 .8 .8"/>
+    <material name="grid" texture="grid" texrepeat="1 1" texuniform="true"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3" directional="true"/>
+    <geom name="floor" size="2 2 0.01" type="plane" material="grid"/>
+    <body name="torso_target" pos="0 0 1.05" mocap="true">
+      <geom type="box" size=".08 .08 .15" contype="0" conaffinity="0" rgba=".6 .3 .3 .25"/>
+      <site type="sphere" size="0.015" rgba="0 0 1 1" group="1"/>
+    </body>
+  </worldbody>
+
+  <keyframe>
+    <key name="stand_drag"
+      qpos="
+      0 0 0.8
+      1 0 0 0
+      -0.1 0 0 0.3 -0.2 0
+      -0.1 0 0 0.3 -0.2 0
+      0 0 0
+      0.35 0.18 0 0.87 0 0 0
+      0.35 -0.18 0 0.87 0 0 0
+      "/>
+  </keyframe>
+</mujoco>
