@@ -45,7 +45,23 @@ if __name__ == "__main__":
         feet_tasks.append(task)
     tasks.extend(feet_tasks)
 
-    limits = [mink.ConfigurationLimit(model)]
+    collision_pairs = [
+        (["left_hand_collision"], ["left_thigh_collision"]),
+        (["right_hand_collision"], ["right_thigh_collision"]),
+        (["torso_collision"], ["left_thigh_collision"]),
+        (["torso_collision"], ["right_thigh_collision"]),
+    ]
+    collision_avoidance_limit = mink.CollisionAvoidanceLimit(
+        model=model,
+        geom_pairs=collision_pairs,  # type: ignore
+        minimum_distance_from_collisions=0.005,
+        collision_detection_distance=0.15,
+    )
+
+    limits = [
+        mink.ConfigurationLimit(model),
+        collision_avoidance_limit,
+    ]
 
     torso_mid = model.body("torso_target").mocapid[0]
 
