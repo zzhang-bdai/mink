@@ -60,8 +60,13 @@ if __name__ == "__main__":
         collision_detection_distance=0.15,
     )
 
+    config_limit = mink.ConfigurationLimit(model)
+    # Keep knees above 0.17 rad (tighter than the model's native lower bound).
+    for jname in ("left_knee_joint", "right_knee_joint"):
+        config_limit.lower[model.joint(jname).qposadr[0]] = 0.17
+
     limits = [
-        mink.ConfigurationLimit(model),
+        config_limit,
         collision_avoidance_limit,
     ]
 
