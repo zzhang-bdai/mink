@@ -151,6 +151,8 @@ def is_chunk_done(shards_dir: Path, chunk_id: int) -> bool:
 def _atomic_write_done(done_path: Path, payload: dict) -> None:
     tmp = done_path.with_suffix(".done.tmp")
     tmp.write_text(json.dumps(payload))
+    with open(tmp, "rb") as fh:
+        os.fsync(fh.fileno())
     os.replace(tmp, done_path)
 
 
@@ -208,6 +210,8 @@ def process_chunk(
     np.save(paths.commands, cmd_buf[:n_local])
     np.save(paths.joints, jnt_buf[:n_local])
     if diag_buf is not None:
+        # diag_buf keeps all n_cells rows (converged + failed); commands.npy/joints.npy
+        # are sliced to n_local. Not index-aligned with each other on purpose.
         np.save(paths.diagnostics, diag_buf)
     for f in (paths.commands, paths.joints) + ((paths.diagnostics,) if diag_buf is not None else ()):
         with open(f, "rb") as fh:
