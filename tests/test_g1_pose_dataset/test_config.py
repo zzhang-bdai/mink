@@ -7,10 +7,9 @@ from pathlib import Path
 import mujoco
 import numpy as np
 import pytest
+from g1_pose_dataset import config as cfg
 
 import mink
-
-from g1_pose_dataset import config as cfg
 
 XML_PATH = Path(__file__).resolve().parents[2] / "examples" / "unitree_g1" / "scene_g1_torso.xml"
 
