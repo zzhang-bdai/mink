@@ -128,6 +128,7 @@ def test_parse_args_default_output_dir_is_none() -> None:
 
 def test_parse_args_dataset_name_and_resume_flags() -> None:
     args = _parse_args(["--dataset-name", "final", "--resume"])
+    assert args.output_dir is None
     assert args.dataset_name == "final"
     assert args.resume is True
 

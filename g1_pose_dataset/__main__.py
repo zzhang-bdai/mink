@@ -97,9 +97,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--resume",
         action="store_true",
         help=(
-            "Reuse the latest existing folder under data/g1_torso_pose/ "
-            "matching the timestamp[_{dataset_name}] pattern instead of "
-            "creating a new one. Ignored when --output-dir is set."
+            "Reuse the latest existing folder under "
+            f"{DEFAULT_OUTPUT_BASE.relative_to(REPO_ROOT)}/ matching the "
+            "timestamp[_{dataset_name}] pattern instead of creating a new "
+            "one. Ignored when --output-dir is set."
         ),
     )
     parser.add_argument("--num-workers", type=int, default=0,
