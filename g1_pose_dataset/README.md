@@ -57,4 +57,5 @@ unintended re-run never overwrites a finished dataset.
 
 ## Spec / design
 
-See [`docs/superpowers/specs/2026-05-06-g1-pose-dataset-design.md`](../docs/superpowers/specs/2026-05-06-g1-pose-dataset-design.md).
+- Initial design: [`docs/superpowers/specs/2026-05-06-g1-pose-dataset-design.md`](../docs/superpowers/specs/2026-05-06-g1-pose-dataset-design.md).
+- Timestamped output dir: [`docs/superpowers/specs/2026-05-07-timestamped-output-dir-design.md`](../docs/superpowers/specs/2026-05-07-timestamped-output-dir-design.md).
