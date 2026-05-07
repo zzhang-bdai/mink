@@ -11,6 +11,8 @@ import queue as _queue
 import shutil
 import sys
 import time
+import re
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
 from pathlib import Path
@@ -29,6 +31,44 @@ DEFAULT_OUTPUT_DIR = REPO_ROOT / "data" / "g1_torso_pose"
 DEFAULT_SUBSHARD_SIZE = 50_000
 DEFAULT_THRESHOLD = 1e-3
 DEFAULT_MAX_ITER = 500
+
+
+def _resolve_output_dir(
+    output_dir: Path | None,
+    dataset_name: str,
+    resume: bool,
+    *,
+    base: Path,
+    now=datetime.now,
+) -> Path:
+    """Resolve the run's output directory.
+
+    See docs/superpowers/specs/2026-05-07-timestamped-output-dir-design.md.
+    """
+    if output_dir is not None:
+        return output_dir
+
+    suffix_re = rf"_{re.escape(dataset_name)}" if dataset_name else ""
+    pattern = re.compile(rf"^\d{{8}}_\d{{6}}{suffix_re}$")
+
+    if resume:
+        if not base.exists():
+            raise SystemExit(
+                f"--resume: base directory {base} does not exist"
+            )
+        matches = sorted(
+            p.name for p in base.iterdir()
+            if p.is_dir() and pattern.match(p.name)
+        )
+        if not matches:
+            raise SystemExit(
+                f"--resume: no folder matching {pattern.pattern} in {base}"
+            )
+        return base / matches[-1]
+
+    ts = now().strftime("%Y%m%d_%H%M%S")
+    name = ts if dataset_name == "" else f"{ts}_{dataset_name}"
+    return base / name
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
