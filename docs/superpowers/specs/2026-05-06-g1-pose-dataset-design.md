@@ -158,23 +158,28 @@ digits; doubling to `float64` doubles file size for no NN-training benefit.
 ## Architecture
 
 ```
-scripts/generate_g1_pose_dataset.py    # entrypoint: CLI + dispatcher + concat
-src/g1_pose_dataset/
+g1_pose_dataset/                  # top-level package, importable from repo root
 ├── __init__.py
-├── config.py     # build_tasks_and_limits(model) — single source of truth,
-│                 # mirrors the example
+├── __main__.py   # CLI + dispatcher + concat (run: python -m g1_pose_dataset)
+├── config.py     # build_tasks_and_limits(model), extract_joint_names(model) —
+│                 # single source of truth, mirrors the example
 ├── grid.py       # build_grid() -> (T, 4); iter_cells(start, end)
 ├── worker.py     # run_worker(rank, chunk_ids, args) — one per process
 └── concat.py     # concat_shards(output_dir) -> writes commands.npy + joints.npy
 tests/
-├── test_dataset_grid.py    # math: total count, axis counts, linearisation order
-├── test_dataset_worker.py  # 10-cell smoke run with real model
-├── test_dataset_concat.py  # write fake subshards, concat, verify final
-└── test_dataset_resume.py  # tiny grid, kill mid-chunk, restart, no dups/gaps
+└── test_g1_pose_dataset/
+    ├── __init__.py
+    ├── test_grid.py    # math: total count, axis counts, linearisation order
+    ├── test_worker.py  # 10-cell smoke run with real model
+    ├── test_concat.py  # write fake subshards, concat, verify final
+    └── test_resume.py  # tiny grid, kill mid-chunk, restart, no dups/gaps
 ```
 
-Splitting into a small importable module (rather than one fat script) keeps the
-worker / grid / concat pieces testable independently.
+The package lives at repo top level (not under `src/`) because it is not part
+of the published mink wheel — it is a project-local generation tool.
+`scripts/` is gitignored in this repo, so the entrypoint becomes the package's
+`__main__.py` (run via `python -m g1_pose_dataset ...`). Splitting into focused
+modules keeps grid / worker / concat testable independently.
 
 ## Multiprocessing & sharding
 
@@ -227,7 +232,7 @@ counters or locks needed.
 ## CLI
 
 ```
-python scripts/generate_g1_pose_dataset.py \
+python -m g1_pose_dataset \
     [--output-dir data/g1_torso_pose] \
     [--num-workers AUTO]            # default: os.cpu_count() - 1
     [--threshold 1e-3]              # ‖vel‖ convergence threshold
