@@ -68,8 +68,15 @@ def _chunk_specs_for_grid(grid: np.ndarray, subshard_size: int) -> list[tuple[in
 def _split_chunks_among_workers(
     chunk_specs: list[tuple[int, np.ndarray]], num_workers: int
 ) -> list[list[tuple[int, np.ndarray]]]:
-    per = math.ceil(len(chunk_specs) / num_workers)
-    return [chunk_specs[i * per : (i + 1) * per] for i in range(num_workers)]
+    n = len(chunk_specs)
+    base, rem = divmod(n, num_workers)
+    out: list[list[tuple[int, np.ndarray]]] = []
+    start = 0
+    for w in range(num_workers):
+        size = base + (1 if w < rem else 0)
+        out.append(chunk_specs[start : start + size])
+        start += size
+    return out
 
 
 def _safe_pkg_version(name: str) -> str:
@@ -145,13 +152,22 @@ def _run_pilot(args: argparse.Namespace) -> None:
 
     wall_total = time.perf_counter() - t_total0
     concat_mod.concat_shards(pilot_dir, save_diagnostics=True)
+
+    # Source counts from sentinels so resumed pilots report accurately.
+    n_attempted_total = 0
+    n_converged_total = 0
+    for done_path in sorted(shards_dir.glob("subshard_*.done")):
+        sentinel = json.loads(done_path.read_text())
+        n_attempted_total += int(sentinel["n_attempted"])
+        n_converged_total += int(sentinel["n_converged"])
+
     _emit_joint_names(pilot_dir, args.model)
-    _emit_metadata(pilot_dir, n_converged, n_attempted, args)
+    _emit_metadata(pilot_dir, n_converged_total, n_attempted_total, args)
 
     diag = np.load(pilot_dir / "diagnostics.npy")
     iters = diag[:, 1]
     wall_ms = diag[:, 2]
-    skip_rate = 1.0 - n_converged / max(n_attempted, 1)
+    skip_rate = 1.0 - n_converged_total / max(n_attempted_total, 1)
     mean_ms = float(wall_ms.mean())
     p95_ms = float(np.quantile(wall_ms, 0.95))
     full_total = grid_mod.total_cells()
@@ -160,7 +176,7 @@ def _run_pilot(args: argparse.Namespace) -> None:
 
     print()
     print("=== pilot summary ===")
-    print(f"cells: {n_attempted}; converged: {n_converged}; skip rate: {skip_rate:.2%}")
+    print(f"cells: {n_attempted_total}; converged: {n_converged_total}; skip rate: {skip_rate:.2%}")
     print(f"iters: mean={iters.mean():.1f}, p50={np.median(iters):.0f}, "
           f"p95={np.quantile(iters, 0.95):.0f}, max={iters.max():.0f}")
     print(f"ms/cell: mean={mean_ms:.1f}, p95={p95_ms:.1f}")
@@ -257,10 +273,11 @@ def _run_full(args: argparse.Namespace) -> None:
         sentinel = json.loads(done_path.read_text())
         n_attempted_from_sentinels += int(sentinel["n_attempted"])
         n_converged_from_sentinels += int(sentinel["n_converged"])
-    assert n_converged_from_sentinels == n_final, (
-        f"sentinel total ({n_converged_from_sentinels}) disagrees with "
-        f"concat total ({n_final})"
-    )
+    if n_converged_from_sentinels != n_final:
+        raise RuntimeError(
+            f"sentinel total ({n_converged_from_sentinels}) disagrees with "
+            f"concat total ({n_final})"
+        )
 
     _emit_joint_names(args.output_dir, args.model)
     _emit_metadata(args.output_dir, n_final, n_attempted_from_sentinels, args)

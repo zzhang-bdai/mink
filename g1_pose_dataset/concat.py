@@ -50,9 +50,11 @@ def concat_shards(output_dir: Path, save_diagnostics: bool) -> int:
     sentinels: list[dict] = []
     diag_rows = 0
     for cid in chunks:
-        cmd_p, _jnt_p, diag_p, done_p = _shard_paths(shards_dir, cid)
+        cmd_p, jnt_p, diag_p, done_p = _shard_paths(shards_dir, cid)
         if not cmd_p.exists():
             raise FileNotFoundError(f"missing commands shard: {cmd_p}")
+        if not jnt_p.exists():
+            raise FileNotFoundError(f"missing joints shard: {jnt_p}")
         sentinel = json.loads(done_p.read_text())
         sentinels.append(sentinel)
         n_total += int(sentinel["n_converged"])
