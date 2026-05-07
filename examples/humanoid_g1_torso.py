@@ -76,8 +76,20 @@ if __name__ == "__main__":
     data = configuration.data
     solver = "daqp"
 
+    # Pressing 'R' in the viewer requests a fresh random pose target. We only
+    # flip a flag here; Tk isn't thread-safe so the main loop does the work.
+    resample_requested = [False]
+
+    def _key_callback(keycode: int) -> None:
+        if keycode == ord("R"):
+            resample_requested[0] = True
+
     with mujoco.viewer.launch_passive(
-        model=model, data=data, show_left_ui=False, show_right_ui=False
+        model=model,
+        data=data,
+        show_left_ui=False,
+        show_right_ui=False,
+        key_callback=_key_callback,
     ) as viewer:
         mujoco.mjv_defaultFreeCamera(model, viewer.cam)
 
@@ -150,6 +162,31 @@ if __name__ == "__main__":
 
         rate = RateLimiter(frequency=200.0, warn=False)
         while viewer.is_running():
+            if resample_requested[0]:
+                resample_requested[0] = False
+                # Reset to the standing keyframe so each random target is
+                # approached from the same initial joint configuration.
+                configuration.update_from_keyframe("stand_drag")
+                sampled_pos = (
+                    0.0,
+                    0.0,
+                    float(np.random.uniform(0.35, 0.8)),
+                )
+                sampled_rpy_deg = (
+                    float(np.random.uniform(-10.0, 10.0)),
+                    float(np.random.uniform(-15.0, 90.0)),
+                    float(np.random.uniform(-45.0, 45.0)),
+                )
+                if tk_alive:
+                    for var, val in zip(pos_vars, sampled_pos):
+                        var.set(val)
+                    for var, val in zip(rpy_vars, sampled_rpy_deg):
+                        var.set(val)
+                else:
+                    data.mocap_pos[torso_mid] = sampled_pos
+                    data.mocap_quat[torso_mid] = mink.SO3.from_rpy_radians(
+                        *np.deg2rad(sampled_rpy_deg)
+                    ).wxyz
             # Pump Tk events; read sliders into the mocap target.
             # Mouse-drag of the mocap is overwritten on the next tick — sliders win.
             if tk_alive:

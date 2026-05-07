@@ -17,7 +17,7 @@
   <worldbody>
     <light pos="0 0 3" directional="true"/>
     <geom name="floor" size="2 2 0.01" type="plane" material="grid"/>
-    <body name="torso_target" pos="0 0 1.05" mocap="true">
+    <body name="torso_target" pos="0 0 0.785" mocap="true">
       <geom type="box" size=".08 .08 .15" contype="0" conaffinity="0" rgba=".6 .3 .3 .25"/>
       <site type="sphere" size="0.015" rgba="0 0 1 1" group="1"/>
     </body>
@@ -26,7 +26,7 @@
   <keyframe>
     <key name="stand_drag"
       qpos="
-      0 0 0.8
+      0 0 0.785
       1 0 0 0
       -0.1 0 0 0.3 -0.2 0
       -0.1 0 0 0.3 -0.2 0
