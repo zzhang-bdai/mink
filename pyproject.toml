@@ -62,7 +62,7 @@ Homepage = "https://kevinzakka.github.io/mink/"
 Documentation = "https://kevinzakka.github.io/mink/"
 
 [tool.ruff]
-src = ["src"]  # Helpful for recognizing first-party imports.
+src = ["src", "g1_pose_dataset"]  # Helpful for recognizing first-party imports.
 exclude = [
   "typings",
 ]
@@ -99,7 +99,7 @@ stubPath = "typings"
 extra-paths = ["typings"]
 
 [tool.ty.src]
-include = ["src", "tests"]
+include = ["src", "tests", "g1_pose_dataset"]
 exclude = ["typings"]
 
 [tool.coverage.report]
