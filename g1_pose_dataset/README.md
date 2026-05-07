@@ -18,7 +18,9 @@ python -m g1_pose_dataset --pilot 1000
 python -m g1_pose_dataset
 
 # Optional flags:
-#   --output-dir PATH         (default: data/g1_torso_pose)
+#   --output-dir PATH         override; default: data/g1_torso_pose/{YYYYMMDD_HHMMSS}[_{name}]
+#   --dataset-name NAME       suffix appended to the default timestamped folder
+#   --resume                  reuse the latest existing matching folder instead of starting fresh
 #   --num-workers N           (0 = os.cpu_count() - 1)
 #   --threshold 1e-3
 #   --max-iter 500
@@ -30,7 +32,7 @@ python -m g1_pose_dataset
 ## Output layout
 
 ```
-data/g1_torso_pose/
+data/g1_torso_pose/20260507_000410_final/
 ├── commands.npy            (N, 4) float32 — roll, pitch, yaw (rad), height (m)
 ├── joints.npy              (N, 29) float32 — joint angles (rad)
 ├── joint_names.json        ordered list of 29 joint names matching joints.npy columns
@@ -46,8 +48,12 @@ mmap_mode="r")` for shuffled-index NN training without loading the whole file.
 ## Resume
 
 Each subshard (50,000 cells) is written atomically with a `.done` sentinel.
-On restart, completed subshards are skipped. Worst-case work loss from a
-crash is one subshard.
+Re-running with `--resume` (and matching `--dataset-name`, if any) picks up
+the latest existing folder under `data/g1_torso_pose/` and skips completed
+subshards. Worst-case work loss from a crash is one subshard.
+
+Without `--resume` every run lands in a fresh timestamped folder, so an
+unintended re-run never overwrites a finished dataset.
 
 ## Spec / design
 
