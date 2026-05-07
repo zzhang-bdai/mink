@@ -7,11 +7,14 @@ import json
 import math
 import multiprocessing as mp
 import os
+import shutil
 import sys
 import time
-from importlib.metadata import PackageNotFoundError, version as pkg_version
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as pkg_version
 from pathlib import Path
 
+import mujoco
 import numpy as np
 
 from g1_pose_dataset import concat as concat_mod
@@ -107,9 +110,7 @@ def _emit_metadata(
 
 
 def _emit_joint_names(output_dir: Path, model_path: Path) -> None:
-    import mujoco as _mj
-
-    model = _mj.MjModel.from_xml_path(str(model_path))
+    model = mujoco.MjModel.from_xml_path(str(model_path))
     names = cfg.extract_joint_names(model)
     (output_dir / "joint_names.json").write_text(json.dumps(names, indent=2))
 
@@ -227,8 +228,6 @@ def _run_full(args: argparse.Namespace) -> None:
     _emit_metadata(args.output_dir, n_final, n_attempted_total, args)
 
     if args.cleanup_shards:
-        import shutil
-
         shutil.rmtree(shards_dir)
         print("[run] removed shards/")
 
