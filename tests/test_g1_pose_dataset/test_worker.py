@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import mujoco
 import numpy as np
 import pytest
-
 from g1_pose_dataset import worker as worker_mod
 
 XML_PATH = (

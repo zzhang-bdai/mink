@@ -13,7 +13,6 @@ import mujoco
 import numpy as np
 
 import mink
-
 from g1_pose_dataset import config as cfg
 
 KEYFRAME_NAME = "stand_drag"
