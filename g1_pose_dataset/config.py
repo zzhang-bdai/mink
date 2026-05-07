@@ -29,19 +29,19 @@ KNEE_LOWER_BOUND_RAD = 0.17
 KNEE_JOINTS = ("left_knee_joint", "right_knee_joint")
 
 # Collision-avoidance pairs (matches the example).
-COLLISION_PAIRS: list[tuple[list[str], list[str]]] = [
-    (["left_hand_collision"], ["left_thigh_collision"]),
-    (["right_hand_collision"], ["right_thigh_collision"]),
-    (["torso_collision"], ["left_thigh_collision"]),
-    (["torso_collision"], ["right_thigh_collision"]),
-]
+COLLISION_PAIRS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
+    (("left_hand_collision",), ("left_thigh_collision",)),
+    (("right_hand_collision",), ("right_thigh_collision",)),
+    (("torso_collision",), ("left_thigh_collision",)),
+    (("torso_collision",), ("right_thigh_collision",)),
+)
 COLLISION_MIN_DISTANCE = 0.005
 COLLISION_DETECTION_DISTANCE = 0.15
 
 
 class IKParts(TypedDict):
-    tasks: list
-    limits: list
+    tasks: list[mink.Task]
+    limits: list[mink.Limit]
     torso_task: mink.FrameTask
     foot_tasks: list[mink.FrameTask]
     posture_task: mink.PostureTask
@@ -49,7 +49,7 @@ class IKParts(TypedDict):
 
 
 def extract_joint_names(model: mujoco.MjModel) -> list[str]:
-    """Return the 29 actuated-joint names in qposadr order (free root excluded)."""
+    """Return actuated-joint names in qposadr order (free root excluded)."""
     pairs: list[tuple[int, str]] = []
     for j in range(model.njnt):
         joint = model.joint(j)
@@ -67,7 +67,7 @@ def build_posture_cost(model: mujoco.MjModel) -> np.ndarray:
     return cost
 
 
-def build_ik(model: mujoco.MjModel, configuration: mink.Configuration) -> IKParts:
+def build_ik(model: mujoco.MjModel) -> IKParts:
     """Build tasks + limits exactly as the example does.
 
     The torso task target is unset (caller sets it per cell). Foot and posture
@@ -94,7 +94,7 @@ def build_ik(model: mujoco.MjModel, configuration: mink.Configuration) -> IKPart
             )
         )
 
-    tasks: list = [torso_task, posture_task, *foot_tasks]
+    tasks: list[mink.Task] = [torso_task, posture_task, *foot_tasks]
 
     config_limit = mink.ConfigurationLimit(model)
     for jname in KNEE_JOINTS:
@@ -102,11 +102,11 @@ def build_ik(model: mujoco.MjModel, configuration: mink.Configuration) -> IKPart
 
     collision_limit = mink.CollisionAvoidanceLimit(
         model=model,
-        geom_pairs=COLLISION_PAIRS,  # type: ignore[arg-type]
+        geom_pairs=[(list(a), list(b)) for a, b in COLLISION_PAIRS],
         minimum_distance_from_collisions=COLLISION_MIN_DISTANCE,
         collision_detection_distance=COLLISION_DETECTION_DISTANCE,
     )
-    limits: list = [config_limit, collision_limit]
+    limits: list[mink.Limit] = [config_limit, collision_limit]
 
     joint_names = extract_joint_names(model)
     qposadrs = np.array(

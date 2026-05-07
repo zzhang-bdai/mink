@@ -62,8 +62,7 @@ def test_build_posture_cost_overrides(model: mujoco.MjModel) -> None:
 
 
 def test_build_ik_returns_expected_components(model: mujoco.MjModel) -> None:
-    configuration = mink.Configuration(model)
-    parts = cfg.build_ik(model, configuration)
+    parts = cfg.build_ik(model)
     assert "tasks" in parts
     assert "limits" in parts
     assert "torso_task" in parts
@@ -75,3 +74,19 @@ def test_build_ik_returns_expected_components(model: mujoco.MjModel) -> None:
     assert parts["torso_task"] is parts["tasks"][0]
     assert parts["joint_qposadrs"].shape == (29,)
     assert parts["joint_qposadrs"].dtype == np.int64
+
+    # Knee lower-bound override actually applied to the configuration limit.
+    config_limit = parts["limits"][0]
+    assert isinstance(config_limit, mink.ConfigurationLimit)
+    left_qpos = int(model.joint("left_knee_joint").qposadr[0])
+    right_qpos = int(model.joint("right_knee_joint").qposadr[0])
+    assert config_limit.lower[left_qpos] == pytest.approx(cfg.KNEE_LOWER_BOUND_RAD)
+    assert config_limit.lower[right_qpos] == pytest.approx(cfg.KNEE_LOWER_BOUND_RAD)
+
+    # Foot tasks point at the right sites in the right order.
+    foot_tasks = parts["foot_tasks"]
+    assert len(foot_tasks) == 2
+    assert foot_tasks[0].frame_name == "right_foot"
+    assert foot_tasks[1].frame_name == "left_foot"
+    for ft in foot_tasks:
+        assert ft.frame_type == "site"
