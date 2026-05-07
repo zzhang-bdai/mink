@@ -60,3 +60,93 @@ def test_solve_one_cell_unreachable_returns_not_converged(
         assert out.final_norm < 1e-3
     else:
         assert out.iters == 20
+
+
+def test_subshard_paths_format(tmp_path) -> None:
+    paths = worker_mod.subshard_paths(tmp_path, chunk_id=7)
+    assert paths.commands.name == "subshard_0007.commands.npy"
+    assert paths.joints.name == "subshard_0007.joints.npy"
+    assert paths.done.name == "subshard_0007.done"
+
+
+def test_run_worker_writes_subshard_files(state, tmp_path) -> None:
+    # Tiny synthetic chunk: 3 cells around the central pose.
+    commands = np.array(
+        [
+            [0.0, 0.0, 0.0, 0.7],
+            [0.05, 0.0, 0.0, 0.7],
+            [0.0, 0.05, 0.0, 0.7],
+        ],
+        dtype=np.float32,
+    )
+
+    n_attempted, n_converged = worker_mod.process_chunk(
+        state=state,
+        chunk_id=0,
+        commands=commands,
+        shards_dir=tmp_path,
+        threshold=1e-3,
+        max_iter=500,
+        save_diagnostics=False,
+    )
+    assert n_attempted == 3
+    assert n_converged >= 1  # at least one of the three should converge
+
+    paths = worker_mod.subshard_paths(tmp_path, 0)
+    assert paths.commands.exists()
+    assert paths.joints.exists()
+    assert paths.done.exists()
+
+    cmds = np.load(paths.commands)
+    jnts = np.load(paths.joints)
+    assert cmds.shape == (n_converged, 4)
+    assert jnts.shape == (n_converged, 29)
+
+
+def test_run_worker_skips_completed_chunks(state, tmp_path) -> None:
+    paths = worker_mod.subshard_paths(tmp_path, 0)
+    # Pretend a chunk is already done.
+    paths.commands.write_bytes(b"DUMMY-COMMANDS")
+    paths.joints.write_bytes(b"DUMMY-JOINTS")
+    paths.done.write_text('{"n_attempted": 0, "n_converged": 0}')
+
+    commands = np.array([[0.0, 0.0, 0.0, 0.7]], dtype=np.float32)
+    n_attempted, n_converged = worker_mod.process_chunk(
+        state=state,
+        chunk_id=0,
+        commands=commands,
+        shards_dir=tmp_path,
+        threshold=1e-3,
+        max_iter=500,
+        save_diagnostics=False,
+    )
+
+    assert n_attempted == 0
+    assert n_converged == 0
+    # Files were not overwritten.
+    assert paths.commands.read_bytes() == b"DUMMY-COMMANDS"
+
+
+def test_run_worker_overwrites_partial_subshard(state, tmp_path) -> None:
+    paths = worker_mod.subshard_paths(tmp_path, 0)
+    # Partial: data files present but no .done sentinel.
+    paths.commands.write_bytes(b"PARTIAL-DATA")
+    paths.joints.write_bytes(b"PARTIAL-DATA")
+
+    commands = np.array([[0.0, 0.0, 0.0, 0.7]], dtype=np.float32)
+    n_attempted, n_converged = worker_mod.process_chunk(
+        state=state,
+        chunk_id=0,
+        commands=commands,
+        shards_dir=tmp_path,
+        threshold=1e-3,
+        max_iter=500,
+        save_diagnostics=False,
+    )
+
+    assert n_attempted == 1
+    # Files were overwritten with real .npy content.
+    assert paths.commands.read_bytes() != b"PARTIAL-DATA"
+    assert paths.done.exists()
+    cmds = np.load(paths.commands)
+    assert cmds.shape == (n_converged, 4)
