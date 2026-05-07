@@ -7,6 +7,7 @@ import json
 import math
 import multiprocessing as mp
 import os
+import queue as _queue
 import shutil
 import sys
 import time
@@ -206,7 +207,29 @@ def _run_full(args: argparse.Namespace) -> None:
     expected_chunks = sum(len(s) for s in splits if s)
     t0 = time.perf_counter()
     while n_done < expected_chunks:
-        msg = progress_q.get()
+        try:
+            msg = progress_q.get(timeout=30.0)
+        except _queue.Empty:
+            # Liveness check: if every worker has exited but we haven't
+            # received all expected messages, something crashed silently.
+            if not any(p.is_alive() for p in procs):
+                exit_codes = [p.exitcode for p in procs]
+                # Drain any messages that arrived after the workers exited.
+                while True:
+                    try:
+                        msg = progress_q.get_nowait()
+                    except _queue.Empty:
+                        break
+                    n_done += 1
+                    n_attempted_total += msg["n_attempted"]
+                    n_converged_total += msg["n_converged"]
+                if n_done < expected_chunks:
+                    raise RuntimeError(
+                        f"All workers exited but only {n_done}/{expected_chunks} "
+                        f"chunks reported. Exit codes: {exit_codes}"
+                    )
+                break
+            continue
         n_done += 1
         n_attempted_total += msg["n_attempted"]
         n_converged_total += msg["n_converged"]
@@ -224,8 +247,23 @@ def _run_full(args: argparse.Namespace) -> None:
 
     print("[run] all workers done; concatenating...")
     n_final = concat_mod.concat_shards(args.output_dir, save_diagnostics=args.save_diagnostics)
+
+    # Source counts from the sentinel files so resume runs report accurately:
+    # the queue only sees chunks that this invocation actually processed, but
+    # earlier sentinels still contribute to the dataset's totals.
+    n_attempted_from_sentinels = 0
+    n_converged_from_sentinels = 0
+    for done_path in sorted(shards_dir.glob("subshard_*.done")):
+        sentinel = json.loads(done_path.read_text())
+        n_attempted_from_sentinels += int(sentinel["n_attempted"])
+        n_converged_from_sentinels += int(sentinel["n_converged"])
+    assert n_converged_from_sentinels == n_final, (
+        f"sentinel total ({n_converged_from_sentinels}) disagrees with "
+        f"concat total ({n_final})"
+    )
+
     _emit_joint_names(args.output_dir, args.model)
-    _emit_metadata(args.output_dir, n_final, n_attempted_total, args)
+    _emit_metadata(args.output_dir, n_final, n_attempted_from_sentinels, args)
 
     if args.cleanup_shards:
         shutil.rmtree(shards_dir)
