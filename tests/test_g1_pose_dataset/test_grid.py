@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-
 from g1_pose_dataset import grid as grid_mod
 
 
