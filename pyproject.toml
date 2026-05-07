@@ -136,3 +136,6 @@ archs = ["x86_64", "arm64"]
 if.failed = true
 wheel.cmake = false
 wheel.packages = ["src/mink"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

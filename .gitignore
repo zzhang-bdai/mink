@@ -17,3 +17,6 @@ build/
 .DS_Store
 .pytest_cache/
 .claude/
+
+# Generated datasets
+/data/
