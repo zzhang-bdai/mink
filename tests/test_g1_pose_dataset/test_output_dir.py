@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-from g1_pose_dataset.__main__ import _resolve_output_dir
+from g1_pose_dataset.__main__ import _parse_args, _resolve_output_dir
 
 FROZEN = datetime(2026, 5, 7, 0, 4, 10)
 
@@ -117,3 +117,21 @@ def test_resume_missing_base_raises(tmp_path: Path) -> None:
             base=missing,
             now=_now,
         )
+
+
+def test_parse_args_default_output_dir_is_none() -> None:
+    args = _parse_args([])
+    assert args.output_dir is None
+    assert args.dataset_name == ""
+    assert args.resume is False
+
+
+def test_parse_args_dataset_name_and_resume_flags() -> None:
+    args = _parse_args(["--dataset-name", "final", "--resume"])
+    assert args.dataset_name == "final"
+    assert args.resume is True
+
+
+def test_parse_args_explicit_output_dir() -> None:
+    args = _parse_args(["--output-dir", "/tmp/foo"])
+    assert args.output_dir == Path("/tmp/foo")

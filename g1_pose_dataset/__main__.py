@@ -28,7 +28,7 @@ from g1_pose_dataset import worker as worker_mod
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = REPO_ROOT / "examples" / "unitree_g1" / "scene_g1_torso.xml"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "data" / "g1_torso_pose"
+DEFAULT_OUTPUT_BASE = REPO_ROOT / "data" / "g1_torso_pose"
 DEFAULT_SUBSHARD_SIZE = 50_000
 DEFAULT_THRESHOLD = 1e-3
 DEFAULT_MAX_ITER = 500
@@ -74,7 +74,34 @@ def _resolve_output_dir(
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="g1_pose_dataset")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help=(
+            "Output directory. If unset, defaults to "
+            "data/g1_torso_pose/{YYYYMMDD_HHMMSS}[_{dataset_name}]. "
+            "When set, used verbatim (--dataset-name and --resume are ignored)."
+        ),
+    )
+    parser.add_argument(
+        "--dataset-name",
+        type=str,
+        default="",
+        help=(
+            "Suffix appended to the default timestamped folder name. "
+            "Ignored when --output-dir is set."
+        ),
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Reuse the latest existing folder under data/g1_torso_pose/ "
+            "matching the timestamp[_{dataset_name}] pattern instead of "
+            "creating a new one. Ignored when --output-dir is set."
+        ),
+    )
     parser.add_argument("--num-workers", type=int, default=0,
                         help="0 = os.cpu_count() - 1")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
@@ -165,6 +192,7 @@ def _emit_joint_names(output_dir: Path, model_path: Path) -> None:
 
 
 def _run_pilot(args: argparse.Namespace) -> None:
+    print(f"[pilot] output_dir = {args.output_dir}")
     pilot_dir = args.output_dir / "pilot"
     shards_dir = pilot_dir / "shards"
     shards_dir.mkdir(parents=True, exist_ok=True)
@@ -226,6 +254,7 @@ def _run_pilot(args: argparse.Namespace) -> None:
 
 
 def _run_full(args: argparse.Namespace) -> None:
+    print(f"[run] output_dir = {args.output_dir}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     shards_dir = args.output_dir / "shards"
     shards_dir.mkdir(exist_ok=True)
@@ -332,6 +361,12 @@ def _run_full(args: argparse.Namespace) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    args.output_dir = _resolve_output_dir(
+        args.output_dir,
+        args.dataset_name,
+        args.resume,
+        base=DEFAULT_OUTPUT_BASE,
+    )
 
     if args.dry_run:
         grid = grid_mod.build_grid()
