@@ -35,11 +35,14 @@ def axis_counts() -> tuple[int, int, int, int]:
 
 
 def total_cells() -> int:
-    nr, np_, ny, nh = axis_counts()
-    return nr * np_ * ny * nh
+    nr, npi, ny, nh = axis_counts()
+    return nr * npi * ny * nh
 
 
 def _axis_values_radians_or_m() -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    # np.arange can overshoot by one element due to floating-point accumulation
+    # (e.g. HEIGHT_RANGE_M produces 46 elements instead of 45). Clip every axis
+    # to axis_counts() — the authoritative source of truth.
     nr, npi, ny, nh = axis_counts()
     rolls = np.deg2rad(
         np.arange(ROLL_RANGE_DEG[0], ROLL_RANGE_DEG[1], ROLL_RANGE_DEG[2])[:nr]
@@ -65,16 +68,21 @@ def build_grid() -> np.ndarray:
     # meshgrid with indexing="ij" then ravel preserves C-order with the named
     # axis order, so height (last) varies fastest.
     R, P, Y, H = np.meshgrid(rolls, pitches, yaws, heights, indexing="ij")
-    return np.stack(
+    result = np.stack(
         [R.ravel(order="C"), P.ravel(order="C"), Y.ravel(order="C"), H.ravel(order="C")],
         axis=1,
-    ).astype(DTYPE)
+    )
+    assert result.dtype == DTYPE
+    return result
 
 
 def iter_cells(start: int, stop: int) -> Iterator[tuple[int, np.ndarray]]:
     """Yield ``(linear_index, command_rad_m)`` for indices in ``[start, stop)``.
 
-    Clips ``stop`` to ``total_cells()``.
+    Materialises the full grid then yields the requested slice. Callers that
+    need many ranges should call :func:`build_grid` once and slice directly;
+    that is what the worker does in production. Clips ``stop`` to
+    :func:`total_cells`.
     """
     n = total_cells()
     stop = min(stop, n)
