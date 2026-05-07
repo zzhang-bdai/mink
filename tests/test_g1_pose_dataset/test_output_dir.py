@@ -6,7 +6,6 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
-
 from g1_pose_dataset.__main__ import _resolve_output_dir
 
 FROZEN = datetime(2026, 5, 7, 0, 4, 10)
@@ -89,9 +88,12 @@ def test_explicit_output_dir_is_returned_verbatim(tmp_path: Path) -> None:
 
 
 def test_resume_ignores_non_matching_filenames(tmp_path: Path) -> None:
-    # A regular file (not a dir) and a non-conforming subdir must be skipped.
+    # The match must be a directory whose name matches the regex.
+    # The genuine match is the older one — the file with a later timestamp
+    # whose name otherwise matches the regex must be filtered out by is_dir().
     (tmp_path / "20260507_000410_final").mkdir()
     (tmp_path / "not_a_timestamp").mkdir()
+    (tmp_path / "20270101_000000_final").write_text("file, not dir")
     (tmp_path / "20260507_000410_final.txt").write_text("ignore me")
     out = _resolve_output_dir(
         output_dir=None,
@@ -101,3 +103,17 @@ def test_resume_ignores_non_matching_filenames(tmp_path: Path) -> None:
         now=_now,
     )
     assert out == tmp_path / "20260507_000410_final"
+
+
+def test_resume_missing_base_raises(tmp_path: Path) -> None:
+    # First-time --resume with no base directory at all is a common user
+    # mistake; must surface a clear error instead of silently creating one.
+    missing = tmp_path / "does_not_exist"
+    with pytest.raises(SystemExit, match="base directory"):
+        _resolve_output_dir(
+            output_dir=None,
+            dataset_name="",
+            resume=True,
+            base=missing,
+            now=_now,
+        )

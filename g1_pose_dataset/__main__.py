@@ -8,10 +8,11 @@ import math
 import multiprocessing as mp
 import os
 import queue as _queue
+import re
 import shutil
 import sys
 import time
-import re
+from collections.abc import Callable
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as pkg_version
@@ -39,7 +40,7 @@ def _resolve_output_dir(
     resume: bool,
     *,
     base: Path,
-    now=datetime.now,
+    now: Callable[[], datetime] = datetime.now,
 ) -> Path:
     """Resolve the run's output directory.
 
