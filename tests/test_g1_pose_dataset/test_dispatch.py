@@ -24,6 +24,7 @@ def test_pilot_run_via_cli(tmp_path) -> None:
         capture_output=True,
         text=True,
         timeout=180,
+        check=False,
     )
     assert result.returncode == 0, f"stderr:\n{result.stderr}\nstdout:\n{result.stdout}"
     pilot = out_dir / "pilot"
