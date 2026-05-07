@@ -113,6 +113,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--save-diagnostics", action="store_true")
     parser.add_argument("--cleanup-shards", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--report-failed-commands",
+        action="store_true",
+        help=(
+            "Record commands whose IK did not converge. Persisted per-shard in "
+            ".done sentinels and aggregated into metadata.json. Default: off."
+        ),
+    )
     parser.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     return parser.parse_args(argv)
 
@@ -155,6 +163,23 @@ def _safe_pkg_version(name: str) -> str:
         return "unknown"
 
 
+def _aggregate_failed_commands(shards_dir: Path) -> list[list[float]] | None:
+    """Collect failed_commands from every per-shard .done sentinel.
+
+    Returns None if no sentinel reports failures (i.e. the feature was off
+    for the entire run). Returns a possibly-empty list otherwise.
+    """
+    found_any_field = False
+    failed: list[list[float]] = []
+    for done_path in sorted(shards_dir.glob("subshard_*.done")):
+        sentinel = json.loads(done_path.read_text())
+        if "failed_commands" not in sentinel:
+            continue
+        found_any_field = True
+        failed.extend(sentinel["failed_commands"])
+    return failed if found_any_field else None
+
+
 def _emit_metadata(
     output_dir: Path, n_converged: int, n_attempted: int, args: argparse.Namespace
 ) -> None:
@@ -183,6 +208,12 @@ def _emit_metadata(
         "mink_version": _safe_pkg_version("mink"),
         "mujoco_version": _safe_pkg_version("mujoco"),
     }
+    if args.report_failed_commands:
+        failed = _aggregate_failed_commands(output_dir / "shards")
+        # Write the field even if shards from a prior run lacked it; an empty
+        # list with the field present signals the feature was active.
+        metadata["failed_commands"] = failed if failed is not None else []
+        metadata["n_failed_commands"] = len(metadata["failed_commands"])
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
 
 
@@ -215,6 +246,7 @@ def _run_pilot(args: argparse.Namespace) -> None:
             threshold=args.threshold,
             max_iter=args.max_iter,
             save_diagnostics=True,  # pilots always save diagnostics
+            report_failed_commands=args.report_failed_commands,
         )
         n_attempted += n_a
         n_converged += n_c
@@ -252,6 +284,13 @@ def _run_pilot(args: argparse.Namespace) -> None:
     print(f"ms/cell: mean={mean_ms:.1f}, p95={p95_ms:.1f}")
     print(f"pilot wall: {wall_total:.1f} s")
     print(f"projected full-run ETA at {n_workers_full} workers: {eta_h:.2f} h")
+    if args.report_failed_commands:
+        meta = json.loads((pilot_dir / "metadata.json").read_text())
+        n_fail = meta.get("n_failed_commands", 0)
+        print(
+            f"failed-commands report: {n_fail} non-converging cells "
+            f"recorded in metadata.json[\"failed_commands\"]"
+        )
 
 
 def _run_full(args: argparse.Namespace) -> None:
@@ -282,6 +321,7 @@ def _run_full(args: argparse.Namespace) -> None:
                 threshold=args.threshold,
                 max_iter=args.max_iter,
                 save_diagnostics=args.save_diagnostics,
+                report_failed_commands=args.report_failed_commands,
                 progress_queue=progress_q,
             ),
         )
@@ -352,6 +392,14 @@ def _run_full(args: argparse.Namespace) -> None:
 
     _emit_joint_names(args.output_dir, args.model)
     _emit_metadata(args.output_dir, n_final, n_attempted_from_sentinels, args)
+
+    if args.report_failed_commands:
+        meta = json.loads((args.output_dir / "metadata.json").read_text())
+        n_fail = meta.get("n_failed_commands", 0)
+        print(
+            f"[run] failed-commands report: {n_fail} non-converging cells "
+            f"recorded in metadata.json[\"failed_commands\"]"
+        )
 
     if args.cleanup_shards:
         shutil.rmtree(shards_dir)

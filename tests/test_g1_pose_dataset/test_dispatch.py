@@ -39,3 +39,34 @@ def test_pilot_run_via_cli(tmp_path) -> None:
     metadata = json.loads((pilot / "metadata.json").read_text())
     assert metadata["n_total_cells"] == 8_505_000
     assert metadata["n_attempted"] == 3
+    # Default: feature off — neither key is present.
+    assert "failed_commands" not in metadata
+    assert "n_failed_commands" not in metadata
+
+
+def test_pilot_run_with_failed_commands_flag(tmp_path) -> None:
+    out_dir = tmp_path / "g1_smoke_failures"
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "g1_pose_dataset",
+            "--pilot", "3",
+            "--output-dir", str(out_dir),
+            "--report-failed-commands",
+        ],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    assert result.returncode == 0, f"stderr:\n{result.stderr}\nstdout:\n{result.stdout}"
+    pilot = out_dir / "pilot"
+    metadata = json.loads((pilot / "metadata.json").read_text())
+    assert "failed_commands" in metadata
+    assert "n_failed_commands" in metadata
+    assert metadata["n_failed_commands"] == len(metadata["failed_commands"])
+    # Each entry is a 4-tuple: roll, pitch, yaw, height.
+    for cmd in metadata["failed_commands"]:
+        assert len(cmd) == 4
+    # The summary line shows up so the user can spot it without parsing JSON.
+    assert "failed-commands report" in result.stdout

@@ -164,6 +164,7 @@ def process_chunk(
     threshold: float,
     max_iter: int,
     save_diagnostics: bool,
+    report_failed_commands: bool = False,
     dt: float = DEFAULT_DT,
     damping: float = DEFAULT_DAMPING,
     solver: str = DEFAULT_SOLVER,
@@ -172,6 +173,10 @@ def process_chunk(
 
     A chunk with an existing ``.done`` sentinel is skipped wholesale and
     returns ``(0, 0)``. Partial files (no sentinel) are silently overwritten.
+
+    When ``report_failed_commands`` is true, the sentinel also includes a
+    ``"failed_commands"`` list of ``[roll, pitch, yaw, height]`` for cells that
+    did not converge — persisted per-shard so resumed runs preserve them.
     """
     shards_dir = Path(shards_dir)
     shards_dir.mkdir(parents=True, exist_ok=True)
@@ -185,6 +190,7 @@ def process_chunk(
     diag_buf = (
         np.empty((n_cells, 3), dtype=np.float32) if save_diagnostics else None
     )
+    failed_commands: list[list[float]] = [] if report_failed_commands else []
 
     n_local = 0
     for i in range(n_cells):
@@ -205,6 +211,8 @@ def process_chunk(
             cmd_buf[n_local] = commands[i]
             jnt_buf[n_local] = result.joints
             n_local += 1
+        elif report_failed_commands:
+            failed_commands.append([float(x) for x in commands[i]])
 
     # Write data files first, then fsync, then sentinel.
     np.save(paths.commands, cmd_buf[:n_local])
@@ -217,9 +225,10 @@ def process_chunk(
         with open(f, "rb") as fh:
             os.fsync(fh.fileno())
 
-    _atomic_write_done(
-        paths.done, {"n_attempted": n_cells, "n_converged": int(n_local)}
-    )
+    sentinel: dict = {"n_attempted": n_cells, "n_converged": int(n_local)}
+    if report_failed_commands:
+        sentinel["failed_commands"] = failed_commands
+    _atomic_write_done(paths.done, sentinel)
 
     return n_cells, int(n_local)
 
@@ -232,6 +241,7 @@ def run_worker(
     threshold: float,
     max_iter: int,
     save_diagnostics: bool,
+    report_failed_commands: bool = False,
     progress_queue=None,  # multiprocessing.Queue or None
 ) -> None:
     """Top-level worker function suitable for ``mp.Process(target=...)``."""
@@ -246,6 +256,7 @@ def run_worker(
             threshold=threshold,
             max_iter=max_iter,
             save_diagnostics=save_diagnostics,
+            report_failed_commands=report_failed_commands,
         )
         wall_s = time.perf_counter() - t0
         if progress_queue is not None:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -150,3 +151,55 @@ def test_run_worker_overwrites_partial_subshard(state, tmp_path) -> None:
     assert paths.done.exists()
     cmds = np.load(paths.commands)
     assert cmds.shape == (n_converged, 4)
+
+
+def test_done_sentinel_omits_failed_commands_when_disabled(state, tmp_path) -> None:
+    # Mix of a likely-converging cell and a likely-failing one (low max_iter,
+    # awkward height). The flag is off, so even if cells fail, the sentinel
+    # must not include "failed_commands".
+    commands = np.array(
+        [[0.0, 0.0, 0.0, 0.7], [0.0, 0.0, 0.0, 0.05]], dtype=np.float32
+    )
+    worker_mod.process_chunk(
+        state=state,
+        chunk_id=0,
+        commands=commands,
+        shards_dir=tmp_path,
+        threshold=1e-3,
+        max_iter=20,
+        save_diagnostics=False,
+        report_failed_commands=False,
+    )
+    sentinel = json.loads(worker_mod.subshard_paths(tmp_path, 0).done.read_text())
+    assert "failed_commands" not in sentinel
+
+
+def test_done_sentinel_records_failed_commands_when_enabled(state, tmp_path) -> None:
+    # Two clearly-unreachable cells (height of 1 cm and 2 cm with feet pinned
+    # at standing) so we know at least one ends up in failed_commands. The
+    # 500-iter cap is generous enough that any converging cell stays out.
+    bad_a = [0.0, 0.0, 0.0, 0.02]
+    bad_b = [0.0, 0.0, 0.0, 0.01]
+    commands = np.array([bad_a, bad_b], dtype=np.float32)
+    n_attempted, n_converged = worker_mod.process_chunk(
+        state=state,
+        chunk_id=0,
+        commands=commands,
+        shards_dir=tmp_path,
+        threshold=1e-3,
+        max_iter=500,
+        save_diagnostics=False,
+        report_failed_commands=True,
+    )
+    assert n_attempted == 2
+    sentinel = json.loads(worker_mod.subshard_paths(tmp_path, 0).done.read_text())
+    assert "failed_commands" in sentinel
+    n_failed = n_attempted - n_converged
+    assert n_failed >= 1, "expected at least one unreachable cell to fail"
+    assert len(sentinel["failed_commands"]) == n_failed
+    for entry in sentinel["failed_commands"]:
+        assert len(entry) == 4
+        # Every entry must be one of the two input rows; nothing else solved.
+        assert entry == pytest.approx(bad_a, abs=1e-6) or entry == pytest.approx(
+            bad_b, abs=1e-6
+        )

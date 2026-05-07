@@ -27,6 +27,8 @@ python -m g1_pose_dataset
 #   --subshard-size 50000
 #   --save-diagnostics        write diagnostics.npy (final ‖vel‖, iters, wall_ms per cell)
 #   --cleanup-shards          delete shards/ after successful concat
+#   --report-failed-commands  record non-converging commands in each .done sentinel
+#                             and aggregate them into metadata.json (off by default)
 ```
 
 ## Output layout
